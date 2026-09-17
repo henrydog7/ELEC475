@@ -1,4 +1,7 @@
+import matplotlib
+matplotlib.use('TkAgg')  # Must be defined first!
 import matplotlib.pyplot as plt
+
 import torchvision.transforms as transforms
 from torchvision.datasets import FashionMNIST
 
@@ -17,3 +20,4 @@ label = train_set.targets[idx].item()
 print('label =', label, '(' + CLASSES[label] + ')')
 plt.imshow(img, cmap='gray')
 plt.title(CLASSES[label])
+plt.savefig("fashion_mnist.png")
