@@ -1,5 +1,5 @@
-import matplotlib
-matplotlib.use('TkAgg')  # Must be defined first!
+#import matplotlib
+#matplotlib.use('TkAgg')  # Must be defined first!
 import matplotlib.pyplot as plt
 
 import torchvision.transforms as transforms
