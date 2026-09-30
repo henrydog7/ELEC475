@@ -72,7 +72,7 @@ def main():
         z1 = model.encode(img)
         z2 = model.encode(img2)
         
-        a = torch.linspace(0, 1, n).view(n, 1).to(device=device)
+        a = torch.linspace(0, 1, n).view(n, 1).to(device=device) # git hub code
         
         z = (1-a)*z1 + a*z2
         
@@ -93,7 +93,7 @@ def main():
         for i in range(n-2):
             f.add_subplot(1, n-1, i+2)
             plt.imshow(interpolated[i], cmap='gray')
-            plt.title('interpolated')
+            
         
         plt.show()
         plt.savefig("testPltInterploate.png")
