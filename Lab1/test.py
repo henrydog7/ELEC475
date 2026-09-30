@@ -61,8 +61,8 @@ def main():
         img = test_set.data[idx].type(torch.float32) / 255.0  #normalize
         img = img.view(1, N_input).to(device=device) #flatten
         
-        encoder_output = model.encoder(img)
-        model_output = model.decoder(encoder_output)
+        encoder_output = model.encode(img)
+        model_output = model.decode(encoder_output)
 
         with torch.no_grad():
             output = model(img)

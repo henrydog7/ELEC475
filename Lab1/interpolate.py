@@ -9,6 +9,8 @@ import numpy as np
 
 from model import autoencoderMLP4Layer
 
+# run with python interpolate.py -z 32 -s MLP.32.pth -n 8
+
 DATA_DIR = './data'   # change if using Colab
 
 CLASSES = ['T-shirt/top', 'Trouser', 'Pullover', 'Dress', 'Coat',
