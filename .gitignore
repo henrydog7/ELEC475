@@ -8,7 +8,11 @@ __pycache__/
 
 # large date libraries
 Lab2/data/
+Lab3/data/
 data/
+Lab3/images.tar.gz
+Lab3/checkpoints/alexnet.pth
+Lab3/checkpoints/vgg16.pth
 
 # Distribution / packaging
 .Python
