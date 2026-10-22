@@ -65,24 +65,32 @@ python prelab_verify.py
 - Demonstrate results to a TA for **In-Lab Checkoff (3 Marks)**!
 
 #### 4. Post-Lab Milestones (Due Oct 22)
-- Open `models/alexnet.py` and implement the `TODO [POST-LAB STEP 1 & 2]` sections.
-- Run the normalization ablation study (using multi-seed reproducibility and early stopping):
+- `models/alexnet.py` implements the five-stage AlexNet-64 with selectable normalization (`none`, `lrn`, or `bn`).
+- Run the normalization ablation study:
   ```powershell
-  python train.py --model alexnet --norm none --dataset cifar10 --epochs 15 --seed 42 --early-stopping --save-model checkpoints/alexnet_none.pth --plot-file plots/loss_none.png
-  python train.py --model alexnet --norm lrn --dataset cifar10 --epochs 15 --seed 42 --early-stopping --save-model checkpoints/alexnet_lrn.pth --plot-file plots/loss_lrn.png
-  python train.py --model alexnet --norm bn --dataset cifar10 --epochs 15 --seed 42 --early-stopping --save-model checkpoints/alexnet_bn.pth --plot-file plots/loss_bn.png
+  python train.py --model alexnet --norm none --dataset cifar10 --epochs 10 --save-model checkpoints/alexnet_none.pth --plot-file plots/loss_alexnet_none.png
+  python train.py --model alexnet --norm lrn --dataset cifar10 --epochs 10 --save-model checkpoints/alexnet_lrn.pth --plot-file plots/loss_alexnet_lrn.png
+  python train.py --model alexnet --norm bn --dataset cifar10 --epochs 10 --save-model checkpoints/alexnet_bn.pth --plot-file plots/loss_alexnet_bn.png
   ```
-- Open `utils/transforms.py` and implement the `TODO [POST-LAB STEP 3]` data augmentations.
-- Train AlexNet with data augmentation and early stopping:
+- Train BatchNorm AlexNet with and without augmentation:
   ```powershell
-  python train.py --model alexnet --norm bn --dataset cifar10 --epochs 15 --seed 42 --early-stopping --save-model checkpoints/alexnet_bn_aug.pth --plot-file plots/loss_aug.png
+  python train.py --model alexnet --norm bn --dataset cifar10 --epochs 15 --no-augment --save-model checkpoints/alexnet_no_aug.pth --plot-file plots/loss_no_aug.png
+  python train.py --model alexnet --norm bn --dataset cifar10 --epochs 15 --save-model checkpoints/alexnet_with_aug.pth --plot-file plots/loss_with_aug.png
   ```
-- Benchmark model complexity and FLOPs across all models:
+- Training runs save JSON metrics under `results/`. Use these to create the validation-accuracy ablation plot:
   ```powershell
-  python compare_models.py --dataset cifar10
+  python -m utils.visualization --plot-ablation
   ```
-- Train PyTorch Zoo AlexNet for comparison:
+- Train and evaluate on Tiny ImageNet-200. Its validation loader uses the official `val_annotations.txt` labels:
   ```powershell
-  python train.py --model zoo_alexnet --dataset cifar10 --epochs 15 --seed 42 --early-stopping --save-model checkpoints/zoo_alexnet.pth
+  python train.py --model alexnet --norm bn --dataset tiny_imagenet --epochs 10 --save-model checkpoints/alexnet_tiny_imagenet.pth --plot-file plots/loss_tiny_imagenet.png
   ```
-- Author your formal report per instructions in [`POSTLAB.md`](../POSTLAB.md) and submit to OnQ!
+- Train the torchvision AlexNet baseline:
+  ```powershell
+  python train.py --model zoo_alexnet --dataset cifar10 --epochs 15 --save-model checkpoints/zoo_alexnet.pth --plot-file plots/loss_zoo_alexnet.png
+  ```
+- Benchmark model complexity and FLOPs (use `--device cuda` when CUDA is available):
+  ```powershell
+  python compare_models.py --dataset cifar10 --device auto
+  ```
+- The report requirements and empirical study questions are in `ELEC475_Lab2_Post-lab.pdf`.

@@ -12,6 +12,7 @@ Features:
 """
 import os
 import argparse
+import json
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -91,6 +92,8 @@ def main():
     parser.add_argument("--no-augment", action="store_true", help="Disable training data augmentation")
     parser.add_argument("--save-model", type=str, default=None, help="Path to save best model checkpoint (.pth)")
     parser.add_argument("--plot-file", type=str, default=None, help="Path to save loss and accuracy curve plot")
+    parser.add_argument("--results-dir", type=str, default="./results",
+                        help="Directory for per-run JSON metrics used by the ablation plot")
     # Early Stopping Options
     parser.add_argument("--early-stopping", action="store_true", help="Enable early stopping mechanism")
     parser.add_argument("--early-stopping-metric", type=str, default="val_loss",
@@ -163,6 +166,7 @@ def main():
     # 6. Training Loop with High-Precision CUDA Synchronization Timer
     train_losses, val_losses = [], []
     train_accs, val_accs = [], []
+    epoch_times = []
     best_val_acc = 0.0
     best_val_f1 = 0.0
 
@@ -183,6 +187,7 @@ def main():
             val_losses.append(v_loss)
             train_accs.append(tr_acc)
             val_accs.append(v_acc)
+            epoch_times.append(elapsed)
 
             print(f"{epoch:^7d} | {tr_loss:^11.4f} | {tr_acc:^14.2f} | {v_loss:^10.4f} | {v_acc:^12.2f} | {v_f1:^11.2f} | {elapsed:^9.2f} | {throughput:^8.1f} s/s")
 
@@ -219,6 +224,37 @@ def main():
         model_display = f"{args.model} ({args.norm})" if args.model == "alexnet" else args.model
         plot_training_curves(train_losses, val_losses, train_accs, val_accs,
                              save_path=args.plot_file, model_name=model_display)
+
+    norm_label = args.norm if args.model == "alexnet" else "na"
+    augmentation_label = "aug" if not args.no_augment else "noaug"
+    result_name = (
+        f"{args.model}_{args.dataset}_{norm_label}_{augmentation_label}_seed{args.seed}.json"
+    )
+    os.makedirs(args.results_dir, exist_ok=True)
+    results_path = os.path.join(args.results_dir, result_name)
+    results = {
+        "model": args.model,
+        "norm": norm_label,
+        "dataset": args.dataset,
+        "augmentation": not args.no_augment,
+        "seed": args.seed,
+        "epochs_requested": args.epochs,
+        "epochs_completed": len(train_losses),
+        "batch_size": args.batch_size,
+        "learning_rate": args.lr,
+        "train_losses": train_losses,
+        "val_losses": val_losses,
+        "train_accuracies": train_accs,
+        "val_accuracies": val_accs,
+        "epoch_seconds": epoch_times,
+        "trainable_params": profiler.trainable_params,
+        "flops": profiler.flops,
+        "best_val_accuracy": best_val_acc,
+        "best_val_macro_f1": best_val_f1,
+    }
+    with open(results_path, "w", encoding="utf-8") as results_file:
+        json.dump(results, results_file, indent=2)
+    print(f"Training history saved to: {results_path}")
 
 
 if __name__ == "__main__":

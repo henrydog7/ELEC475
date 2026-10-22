@@ -68,12 +68,13 @@ class ModelProfiler:
       - Floating Point Operations (FLOPs: ~2x MACs)
       - Model Memory Footprint (MB)
       
-    Works out-of-the-box via PyTorch forward hooks, with fallback to 'thop' if installed.
+    Uses thop when available and native PyTorch hooks otherwise.
     """
     def __init__(self, model: nn.Module, input_size: Tuple[int, ...] = (1, 3, 64, 64), device: str = "cpu"):
         self.model = model
         self.input_size = input_size
         self.device = torch.device(device)
+        self.model.to(self.device)
         self.total_params, self.trainable_params = self._count_parameters()
         self.macs, self.flops = self._compute_flops()
 
@@ -83,66 +84,69 @@ class ModelProfiler:
         return total, trainable
 
     def _compute_flops(self) -> Tuple[int, int]:
-        """Calculates MACs and FLOPs using PyTorch module hooks or thop."""
-        try:
-            import thop
-            dummy = torch.randn(*self.input_size, device=self.device)
-            self.model.eval()
-            macs, _ = thop.profile(self.model, inputs=(dummy,), verbose=False)
-            return int(macs), int(2 * macs)
-        except Exception:
-            pass
-
-        # Native PyTorch Forward Hook Profiler
-        total_macs = 0
-        hooks = []
-
-        def conv2d_hook(m: nn.Conv2d, inp: Any, out: torch.Tensor):
-            nonlocal total_macs
-            batch_size = out.shape[0]
-            out_c, out_h, out_w = out.shape[1], out.shape[2], out.shape[3]
-            in_c = m.in_channels // m.groups
-            k_h, k_w = m.kernel_size
-            macs_per_item = out_c * out_h * out_w * in_c * k_h * k_w
-            total_macs += batch_size * macs_per_item
-
-        def linear_hook(m: nn.Linear, inp: Any, out: torch.Tensor):
-            nonlocal total_macs
-            batch_size = out.shape[0]
-            total_macs += batch_size * m.in_features * m.out_features
-
-        def pool_hook(m: nn.Module, inp: Any, out: torch.Tensor):
-            nonlocal total_macs
-            batch_size = out.shape[0]
-            if isinstance(m, (nn.MaxPool2d, nn.AvgPool2d)):
-                k = m.kernel_size if isinstance(m.kernel_size, tuple) else (m.kernel_size, m.kernel_size)
-                total_macs += batch_size * out.numel() // batch_size * (k[0] * k[1])
-
-        # Register hooks
-        for mod in self.model.modules():
-            if isinstance(mod, nn.Conv2d):
-                hooks.append(mod.register_forward_hook(conv2d_hook))
-            elif isinstance(mod, nn.Linear):
-                hooks.append(mod.register_forward_hook(linear_hook))
-            elif isinstance(mod, (nn.MaxPool2d, nn.AvgPool2d)):
-                hooks.append(mod.register_forward_hook(pool_hook))
-
-        self.model.eval()
+        """Calculates MACs and FLOPs, preserving the model's training state."""
         was_training = self.model.training
-        dummy = torch.randn(*self.input_size, device=self.device)
-        with torch.no_grad():
+        hooks = []
+        try:
+            self.model.eval()
             try:
+                import thop
+            except ImportError:
+                thop = None
+
+            dummy = torch.randn(*self.input_size, device=self.device)
+            if thop is not None:
+                with torch.no_grad():
+                    profile_result = thop.profile(
+                        self.model, inputs=(dummy,), verbose=False
+                    )
+                    macs = profile_result[0]
+                return int(macs), int(2 * macs)
+
+            total_macs = 0
+
+            def conv2d_hook(m: nn.Conv2d, inp: Any, out: torch.Tensor):
+                nonlocal total_macs
+                batch_size = out.shape[0]
+                out_c, out_h, out_w = out.shape[1], out.shape[2], out.shape[3]
+                in_c = m.in_channels // m.groups
+                k_h, k_w = m.kernel_size[-2], m.kernel_size[-1]
+                macs_per_item = out_c * out_h * out_w * in_c * k_h * k_w
+                total_macs += batch_size * macs_per_item
+
+            def linear_hook(m: nn.Linear, inp: Any, out: torch.Tensor):
+                nonlocal total_macs
+                batch_size = out.shape[0]
+                total_macs += batch_size * m.in_features * m.out_features
+
+            def pool_hook(m: nn.Module, inp: Any, out: torch.Tensor):
+                nonlocal total_macs
+                if isinstance(m, (nn.MaxPool2d, nn.AvgPool2d)):
+                    kernel_size = m.kernel_size
+                    kernel_area = (
+                        kernel_size**2
+                        if isinstance(kernel_size, int)
+                        else kernel_size[-2] * kernel_size[-1]
+                    )
+                    total_macs += out.numel() * kernel_area
+
+            for mod in self.model.modules():
+                if isinstance(mod, nn.Conv2d):
+                    hooks.append(mod.register_forward_hook(conv2d_hook))
+                elif isinstance(mod, nn.Linear):
+                    hooks.append(mod.register_forward_hook(linear_hook))
+                elif isinstance(mod, (nn.MaxPool2d, nn.AvgPool2d)):
+                    hooks.append(mod.register_forward_hook(pool_hook))
+
+            with torch.no_grad():
                 self.model(dummy)
-            except Exception:
-                pass
 
-        # Cleanup hooks
-        for h in hooks:
-            h.remove()
-        self.model.train(was_training)
-
-        flops = total_macs * 2
-        return int(total_macs), int(flops)
+            flops = total_macs * 2
+            return int(total_macs), int(flops)
+        finally:
+            for h in hooks:
+                h.remove()
+            self.model.train(was_training)
 
     def get_params_millions(self) -> float:
         return self.total_params / 1e6
@@ -194,6 +198,11 @@ def benchmark_inference(
     Returns:
         (median_latency_ms, throughput_imgs_per_sec)
     """
+    if reps <= 0:
+        raise ValueError("reps must be greater than zero")
+    if warmup < 0:
+        raise ValueError("warmup must be non-negative")
+
     dev = torch.device(device)
     model = model.to(dev)
     model.eval()
@@ -230,7 +239,9 @@ def benchmark_inference(
 def compare_model_complexities(
     models_dict: Dict[str, nn.Module],
     input_size: Tuple[int, ...] = (1, 3, 64, 64),
-    device: str = "cpu"
+    device: str = "cpu",
+    reps: int = 50,
+    warmup: int = 10,
 ) -> str:
     """
     Generates a Markdown and console comparison table for multiple models.
@@ -241,7 +252,13 @@ def compare_model_complexities(
 
     for name, model in models_dict.items():
         profiler = ModelProfiler(model, input_size=input_size, device=device)
-        latency, throughput = benchmark_inference(model, input_size=input_size, device=device, reps=50, warmup=10)
+        latency, throughput = benchmark_inference(
+            model,
+            input_size=input_size,
+            device=device,
+            reps=reps,
+            warmup=warmup,
+        )
         rows.append([
             name,
             f"{profiler.get_params_millions():.3f}",

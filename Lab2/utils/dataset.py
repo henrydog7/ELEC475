@@ -6,7 +6,8 @@ import os
 import urllib.request
 import zipfile
 import torch
-from torch.utils.data import DataLoader
+from PIL import Image
+from torch.utils.data import DataLoader, Dataset
 from torchvision.datasets import CIFAR10, ImageFolder
 from .transforms import get_train_transforms, get_test_transforms
 
@@ -36,6 +37,53 @@ def download_and_extract_tiny_imagenet(data_dir: str = "./data"):
     print("Extraction complete.")
     return target_dir
 
+
+class TinyImageNetValidation(Dataset):
+    """Loads Tiny ImageNet's flat validation image directory using its annotations."""
+
+    def __init__(self, root: str, class_to_idx: dict, transform=None):
+        self.image_dir = os.path.join(root, "val", "images")
+        annotation_file = os.path.join(root, "val", "val_annotations.txt")
+        self.transform = transform
+        self.classes = [name for name, _ in sorted(class_to_idx.items(), key=lambda item: item[1])]
+        self.class_to_idx = class_to_idx
+        self.samples = []
+
+        with open(annotation_file, "r", encoding="utf-8") as annotations:
+            for line_number, line in enumerate(annotations, start=1):
+                fields = line.rstrip("\r\n").split("\t")
+                if len(fields) < 2:
+                    raise ValueError(
+                        f"Invalid Tiny ImageNet validation annotation at "
+                        f"{annotation_file}:{line_number}"
+                    )
+                filename, class_name = fields[0], fields[1]
+                if class_name not in class_to_idx:
+                    raise ValueError(
+                        f"Unknown Tiny ImageNet class {class_name!r} in "
+                        f"{annotation_file}:{line_number}"
+                    )
+                self.samples.append(
+                    (os.path.join(self.image_dir, filename), class_to_idx[class_name])
+                )
+
+        if not self.samples:
+            raise ValueError(f"No validation annotations found in {annotation_file}")
+
+        self.targets = [target for _, target in self.samples]
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, index):
+        image_path, target = self.samples[index]
+        with Image.open(image_path) as image:
+            image = image.convert("RGB")
+        if self.transform is not None:
+            image = self.transform(image)
+        return image, target
+
+
 def get_dataloaders(
     dataset: str = "cifar10",
     data_dir: str = "./data",
@@ -64,7 +112,11 @@ def get_dataloaders(
         val_tf   = get_test_transforms("tiny_imagenet", target_size=target_size)
 
         train_set = ImageFolder(root=train_dir, transform=train_tf)
-        val_set   = ImageFolder(root=train_dir, transform=val_tf)
+        val_set = TinyImageNetValidation(
+            root=tiny_dir,
+            class_to_idx=train_set.class_to_idx,
+            transform=val_tf,
+        )
         num_classes = 200
         classes = train_set.classes
 
