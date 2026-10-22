@@ -46,7 +46,13 @@ class SnoutNet(nn.Module):
         #   6. self.fc2  : in_features=1024, out_features=1024
         #   7. self.fc3  : in_features=1024, out_features=2
         # ======================================================================
-        pass
+        self.conv1 = nn.Conv2d(3, 64, 3, padding=1)
+        self.conv2 = nn.Conv2d(64, 128, 3, padding=1)
+        self.conv3 = nn.Conv2d(128, 256, 3, padding=1)
+        self.pool = nn.MaxPool2d(kernel_size=4, stride=4, ceil_mode=True)
+        self.fc1 = nn.Linear(256 * 4 * 4, 1024)
+        self.fc2 = nn.Linear(1024, 1024)
+        self.fc3 = nn.Linear(1024, 2)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # ======================================================================
@@ -57,7 +63,17 @@ class SnoutNet(nn.Module):
         # 3. Apply fc1 -> ReLU, fc2 -> ReLU, then fc3 (no activation)
         # 4. Return the (B, 2) normalized (u, v) prediction
         # ======================================================================
-        pass
+        x = F.relu(self.conv1(x))
+        x = self.pool(x)
+        x = F.relu(self.conv2(x))
+        x = self.pool(x)
+        x = F.relu(self.conv3(x))
+        x = self.pool(x)
+        x = torch.flatten(x, start_dim=1)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
 
 
 class SnoutNetAlexNet(nn.Module):
@@ -76,11 +92,13 @@ class SnoutNetAlexNet(nn.Module):
         #      otherwise alexnet(weights=None)
         #   2. Replace self.backbone.classifier[6] with nn.Linear(4096, 2)
         # ======================================================================
-        pass
+        weights = AlexNet_Weights.DEFAULT if pretrained else None
+        self.backbone = alexnet(weights=weights)
+        self.backbone.classifier[6] = nn.Linear(4096, 2)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # TODO [PRE-LAB TASK 4]: Return self.backbone(x)
-        pass
+        return self.backbone(x)
 
 
 class SnoutNetVGG16(nn.Module):
@@ -99,11 +117,13 @@ class SnoutNetVGG16(nn.Module):
         #      otherwise vgg16(weights=None)
         #   2. Replace self.backbone.classifier[6] with nn.Linear(4096, 2)
         # ======================================================================
-        pass
+        weights = VGG16_Weights.DEFAULT if pretrained else None
+        self.backbone = vgg16(weights=weights)
+        self.backbone.classifier[6] = nn.Linear(4096, 2)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # TODO [PRE-LAB TASK 4]: Return self.backbone(x)
-        pass
+        return self.backbone(x)
 
 
 if __name__ == "__main__":
@@ -117,4 +137,37 @@ if __name__ == "__main__":
     # TODO [PRE-LAB TASK 5]: Load the provided weights and reproduce a known
     # prediction (see the Pre-Lab document for the code and expected output)
     # ==========================================================================
-    pass
+    from torchinfo import summary
+
+    print("SnoutNet summary:")
+    summary(SnoutNet(), input_size=(1, 3, 227, 227))
+
+    sample = torch.randn(1, 3, 227, 227)
+    model_factories = (
+        ("SnoutNet", SnoutNet),
+        ("SnoutNetAlexNet", lambda: SnoutNetAlexNet(pretrained=False)),
+        ("SnoutNetVGG16", lambda: SnoutNetVGG16(pretrained=False)),
+    )
+
+    for name, create_model in model_factories:
+        model = create_model()
+        model.eval()
+        with torch.inference_mode():
+            output = model(sample)
+        parameter_count = sum(parameter.numel() for parameter in model.parameters())
+        print(
+            f"{name}: output shape={tuple(output.shape)}, "
+            f"parameters={parameter_count:,}"
+        )
+        del model
+        
+    checks = [(SnoutNet(), "snoutnet.pth"),
+        (SnoutNetAlexNet(pretrained=False), "alexnet.pth"),
+        (SnoutNetVGG16(pretrained=False), "vgg16.pth")]
+    for model, name in checks:
+        state = torch.load(f"checkpoints/{name}", map_location="cpu",
+            weights_only=True)
+        model.load_state_dict(state, strict=True)
+        print(f"Loaded {name}")
+        
+    

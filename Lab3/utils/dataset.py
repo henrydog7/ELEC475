@@ -10,6 +10,7 @@ Each sample returns (image, label, orig_size):
     orig_size : (2,) float tensor, original image (W, H)
 """
 from pathlib import Path
+import traceback
 
 import torch
 from PIL import Image
@@ -47,6 +48,17 @@ class PetNoseDataset(Dataset):
         #   4. Store the results in self.samples as a list of (name, u, v) tuples
         # ======================================================================
         self.samples = []
+        with open(label_file, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    name, u_str, v_str = line.split(",")
+                    u_str = u_str.strip().strip('"').strip('(')
+                    v_str = v_str.strip().strip('"').strip(')')
+                    u = float(u_str)
+                    v = float(v_str)
+                    self.samples.append((name, u, v))
+       
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -66,7 +78,19 @@ class PetNoseDataset(Dataset):
         #   6. Return (image, label, orig_size) as float32 tensors,
         #      with label = [u, v] and orig_size = [w, h]
         # ======================================================================
-        pass
+        name, u, v = self.samples[idx]
+        img = Image.open(self.img_dir / name).convert("RGB")
+        w, h = img.size
+
+        img = img.resize((IMG_SIZE, IMG_SIZE), Image.Resampling.BILINEAR)
+        image = TF.to_tensor(img)
+        image = TF.normalize(image, mean=MEAN, std=STD)
+
+        label = torch.tensor(
+            [u * IMG_SIZE / w, v * IMG_SIZE / h], dtype=torch.float32
+        )
+        orig_size = torch.tensor([w, h], dtype=torch.float32)
+        return image, label, orig_size
 
 
 def denormalize(img: torch.Tensor) -> torch.Tensor:
@@ -86,3 +110,4 @@ if __name__ == "__main__":
                   f"| label {label.tolist()} | orig_size {orig_size.tolist()}")
     except Exception as e:
         print(f"Dataset not fully implemented yet: {e}")
+        print(traceback.format_exc())
