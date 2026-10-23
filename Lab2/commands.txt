@@ -1,0 +1,33 @@
+ELEC 475 Lab 2 - Reproducible Training and Benchmark Commands
+
+Run these commands from the Lab2 directory with its Python environment activated.
+The supplied training script uses CUDA when available and otherwise runs on CPU.
+
+# Base and modernized LeNet models
+python train.py --model lenet --dataset cifar10 --epochs 5 --save-model checkpoints/lenet_baseline.pth --plot-file plots/loss_lenet.png
+python train.py --model lenet_modern --dataset cifar10 --epochs 5 --save-model checkpoints/lenet_modern.pth --plot-file plots/loss_lenet_modern.png
+
+# AlexNet normalization ablation
+python train.py --model alexnet --norm none --dataset cifar10 --epochs 10 --seed 42 --save-model checkpoints/alexnet_none.pth --plot-file plots/loss_alexnet_none.png
+python train.py --model alexnet --norm lrn --dataset cifar10 --epochs 10 --seed 42 --save-model checkpoints/alexnet_lrn.pth --plot-file plots/loss_alexnet_lrn.png
+python train.py --model alexnet --norm bn --dataset cifar10 --epochs 10 --seed 42 --save-model checkpoints/alexnet_bn.pth --plot-file plots/loss_alexnet_bn.png
+
+# BatchNorm AlexNet with and without data augmentation (15 epochs each)
+python train.py --model alexnet --norm bn --dataset cifar10 --epochs 15 --seed 42 --no-augment --save-model checkpoints/alexnet_no_aug.pth --plot-file plots/loss_no_aug.png
+python train.py --model alexnet --norm bn --dataset cifar10 --epochs 15 --seed 42 --save-model checkpoints/alexnet_with_aug.pth --plot-file plots/loss_with_aug.png
+
+# Tiny ImageNet-200 and torchvision AlexNet baseline
+python train.py --model alexnet --norm bn --dataset tiny_imagenet --epochs 10 --seed 42 --save-model checkpoints/alexnet_tiny_imagenet.pth --plot-file plots/loss_tiny_imagenet.png
+python train.py --model zoo_alexnet --dataset cifar10 --epochs 15 --seed 42 --save-model checkpoints/zoo_alexnet.pth --plot-file plots/loss_zoo_alexnet.png
+
+# Architecture benchmark (choose auto, cpu, or cuda)
+python compare_models.py --dataset cifar10 --device auto
+
+# Plot validation accuracy from completed training histories in results/
+python -m utils.visualization --plot-ablation
+
+# Capture transform diagnostic output
+python demo_transforms.py
+
+# Evaluate a trained checkpoint (example: BatchNorm AlexNet on CIFAR-10)
+python evaluate.py --checkpoint checkpoints/alexnet_bn.pth --model alexnet --norm bn --dataset cifar10
