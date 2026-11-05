@@ -13,6 +13,8 @@ data/
 Lab3/images.tar.gz
 Lab3/checkpoints/alexnet.pth
 Lab3/checkpoints/vgg16.pth
+Lab3/checkpoints/
+Lab2/checkpoints/
 
 # Distribution / packaging
 .Python
