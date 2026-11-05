@@ -37,15 +37,11 @@ def extract_patch(img: Image.Image, center) -> Image.Image:
         of img centred on center, resized with Image.BILINEAR. Any part of the
         region outside the image is black.
     """
-    # ======================================================================
-    # TODO [POST-LAB STEP 1]: Implement Patch Extraction
-    #
-    # Requirements:
-    #   1. Crop the PATCH_SIZE x PATCH_SIZE region centred on center with img.crop()
-    #      (img.crop() fills any part of the region outside the image with black)
-    #   2. Resize the region to (INPUT_SIZE, INPUT_SIZE) with Image.BILINEAR
-    # ======================================================================
-    pass
+    center_u, center_v = (round(value) for value in center)
+    left = center_u - HALF_PATCH
+    top = center_v - HALF_PATCH
+    patch = img.crop((left, top, left + PATCH_SIZE, top + PATCH_SIZE))
+    return patch.resize((INPUT_SIZE, INPUT_SIZE), Image.Resampling.BILINEAR)
 
 
 class CorrectionDataset(PetNoseDataset):
@@ -66,23 +62,27 @@ class CorrectionDataset(PetNoseDataset):
             target : torch.Tensor, shape (2,), float. (du, dv) / HALF_PATCH, where (du, dv)
                      is the offset from the patch centre to the true nose, in pixels
         """
-        # ======================================================================
-        # TODO [POST-LAB STEP 1]: Implement Patch Sampling & Augmentation
-        #
-        # Requirements:
-        #   1. Get (name, u, v) from self.samples[idx]; open self.img_dir / name as RGB
-        #   2. Choose a random patch centre near the true nose: add a random offset,
-        #      uniform in [-MAX_OFFSET, MAX_OFFSET], to u and to v, then round to integers
-        #   3. Extract the patch centred on the patch centre with extract_patch(), and
-        #      compute (du, dv) = true nose - patch centre
-        #   4. If self.augment is True:
-        #        a. With probability 0.5, flip the patch horizontally
-        #           (patch.transpose(Image.FLIP_LEFT_RIGHT)) and update the target to match
-        #        b. Apply self.color_jitter to the patch, and update the target if needed
-        #   5. Return TF.normalize(TF.to_tensor(patch), MEAN, STD) and the
-        #      normalized target (du, dv) / HALF_PATCH
-        # ======================================================================
-        pass
+        name, u, v = self.samples[idx]
+        with Image.open(self.img_dir / name) as image:
+            image = image.convert("RGB")
+
+        center = (
+            round(u + random.uniform(-MAX_OFFSET, MAX_OFFSET)),
+            round(v + random.uniform(-MAX_OFFSET, MAX_OFFSET)),
+        )
+        patch = extract_patch(image, center)
+        target = torch.tensor(
+            [u - center[0], v - center[1]], dtype=torch.float32
+        )
+
+        if self.augment:
+            if random.random() < 0.5:
+                patch = patch.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+                target[0] = -target[0]
+            patch = self.color_jitter(patch)
+
+        patch_tensor = TF.normalize(TF.to_tensor(patch), MEAN, STD)
+        return patch_tensor, target / HALF_PATCH
 
 
 if __name__ == "__main__":
