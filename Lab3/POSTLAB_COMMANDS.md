@@ -72,12 +72,13 @@ two student numbers joined by an underscore). The archive excludes the dataset,
 provided model weights, predictions, and local virtual environment.
 
 ```bash
-cd ..
-zip -r STUDENT_NUMBER.zip Lab3 \
-  -x 'Lab3/data/*' \
-     'Lab3/checkpoints/snoutnet.pth' \
-     'Lab3/checkpoints/alexnet.pth' \
-     'Lab3/checkpoints/vgg16.pth' \
-     'Lab3/predictions/*' \
-     'Lab3/.venv/*'
+zip -r ELEC475_Lab3_Submission.zip \
+  Lab3/*.py \
+  Lab3/models Lab3/utils Lab3/plots \
+  Lab3/checkpoints/correction_noaug.pth \
+  Lab3/checkpoints/correction_aug.pth \
+  Lab3/checkpoints/correction_mod_noaug.pth \
+  Lab3/checkpoints/correction_mod_aug.pth \
+  Lab3/LBalog_PostLab3Report.pdf 
+  Lab3/requirements.txt
 ```
