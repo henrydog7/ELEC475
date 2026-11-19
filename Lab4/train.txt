@@ -1,0 +1,4 @@
+python train.py --kd none -e 100
+python train.py --kd response -e 100
+python train.py --kd feature -e 100
+python train.py --model custom --kd response -e 100
