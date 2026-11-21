@@ -1,0 +1,34 @@
+{
+  "model": "baseline",
+  "kd": "none",
+  "epochs": 21,
+  "best_epoch": 16,
+  "best_validation_miou": 51.350819589132776,
+  "training_seconds": 3889.5996872789983,
+  "device": "cpu",
+  "hardware": {
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "processor": "x86_64",
+    "cuda_available": false
+  },
+  "arguments": {
+    "kd": "none",
+    "model": "baseline",
+    "data": "./data",
+    "epochs": 100,
+    "batch": 16,
+    "lr": 0.001,
+    "size": 320,
+    "alpha": 0.5,
+    "beta": 0.5,
+    "tau": 4.0,
+    "gamma": 1.0,
+    "workers": 2,
+    "iters": 0,
+    "lr_patience": 2,
+    "lr_factor": 0.5,
+    "patience": 5,
+    "tol": 0.1,
+    "device": null
+  }
+}
